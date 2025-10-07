@@ -97,7 +97,7 @@ export default function WhatsAppNumberInput() {
           {/* Header */}
           <View className="items-center mb-16">
             <Text className="text-2xl font-light text-white mb-2">
-              Welcome to Charto
+              Welcome to WhisP
             </Text>
             <Text className="text-gray-400 text-center text-sm">
               Enter your whatsApp number to get started
