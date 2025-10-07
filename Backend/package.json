@@ -1,0 +1,32 @@
+{
+	"name": "rvs",
+	"version": "1.0.0",
+	"description": "",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"start": "node src/index.js",
+		"dev": "nodemon src/index.js",
+		"format": "prettier --write ."
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"bcrypt": "^6.0.0",
+		"bcryptjs": "^3.0.2",
+		"cookie-parser": "^1.4.7",
+		"cors": "^2.8.5",
+		"dotenv": "^17.2.2",
+		"express": "^5.1.0",
+		"google-auth-library": "^10.4.0",
+		"jsonwebtoken": "^9.0.2",
+		"mongoose": "^8.18.2",
+		"passport-google-oauth20": "^2.0.0",
+		"socket.io": "^4.8.1"
+	},
+	"devDependencies": {
+		"nodemon": "^3.1.10",
+		"prettier": "^3.6.2"
+	}
+}
