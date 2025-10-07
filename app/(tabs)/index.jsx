@@ -1,8 +1,9 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 
 export default function AllScreen() {
-
+const router = useRouter();
 
 
   return (
@@ -57,7 +58,7 @@ export default function AllScreen() {
         <Text className="text-white text-lg font-semibold mb-3">Temporary Chat</Text>
         <Text className="text-gray-400 text-sm mb-4">Create a one-time chat that disappears when you close it</Text>
         
-        <TouchableOpacity className="bg-purple-600 p-4 rounded-lg flex-row justify-between items-center">
+        <TouchableOpacity onPress={() => router.push('/tempChat')} className="bg-purple-600 p-4 rounded-lg flex-row justify-between items-center">
           <View>
             <Text className="text-white font-semibold">Start Temp Chat</Text>
             <Text className="text-purple-200 text-xs mt-1">Chat deleted when closed</Text>
