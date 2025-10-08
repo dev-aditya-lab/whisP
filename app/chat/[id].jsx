@@ -3,6 +3,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { io } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMessages, saveMessages, saveChat } from '../../utils/chatStorage';
+import { 
+  getAutoDeleteSetting, 
+  addMessageExpiry, 
+  filterExpiredMessages 
+} from '../../utils/autoDelete';
 import 'react-native-get-random-values';
 import CryptoJS from 'crypto-js';
 
@@ -32,6 +37,25 @@ export default function UserChat() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [autoDeleteSetting, setAutoDeleteSetting] = useState('never');
+
+  // Clean expired messages periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessages(prev => {
+        const filtered = filterExpiredMessages(prev);
+        if (filtered.length !== prev.length) {
+          // Messages were deleted, update storage
+          const deletedCount = prev.length - filtered.length;
+          console.log(`[Auto-Delete] Removed ${deletedCount} expired message(s)`);
+          saveMessages(partnerId, filtered);
+        }
+        return filtered;
+      });
+    }, 10000); // Check every 10 seconds for testing (was 60000)
+
+    return () => clearInterval(interval);
+  }, [partnerId]);
 
   const loadUserIdAndConnect = async () => {
     try {
@@ -39,10 +63,21 @@ export default function UserChat() {
       if (storedId) {
         setUserId(storedId);
         
-        // Load stored messages first
+        // Load auto-delete setting
+        const setting = await getAutoDeleteSetting();
+        setAutoDeleteSetting(setting);
+        
+        // Load stored messages first and filter expired
         const storedMessages = await getMessages(partnerId);
         if (storedMessages.length > 0) {
-          setMessages(storedMessages);
+          const validMessages = filterExpiredMessages(storedMessages);
+          setMessages(validMessages);
+          
+          // Save filtered messages if any were removed
+          if (validMessages.length !== storedMessages.length) {
+            saveMessages(partnerId, validMessages);
+          }
+          
           setTimeout(scrollToBottom, 100);
         }
         
@@ -66,14 +101,24 @@ export default function UserChat() {
       setIsConnected(false);
     });
 
-    socket.on('receive-message', (msg) => {
+    socket.on('receive-message', async (msg) => {
       // Only add messages relevant to this conversation
       if (
         (msg.senderId === uid && msg.receiverId === partnerId) ||
         (msg.senderId === partnerId && msg.receiverId === uid)
       ) {
+        // Add expiry metadata to message
+        const setting = await getAutoDeleteSetting();
+        const msgWithExpiry = addMessageExpiry(msg, setting);
+        
+        console.log('[Auto-Delete] Message received with setting:', setting);
+        if (msgWithExpiry.expiresAt) {
+          const expiryDate = new Date(msgWithExpiry.expiresAt);
+          console.log('[Auto-Delete] Message will expire at:', expiryDate.toLocaleString());
+        }
+        
         setMessages((prev) => {
-          const updated = [...prev, msg];
+          const updated = [...prev, msgWithExpiry];
           // Save to storage
           saveMessages(partnerId, updated);
           
@@ -87,7 +132,10 @@ export default function UserChat() {
       }
     });
 
-    socket.on('chat-history', (msgs) => {
+    socket.on('chat-history', async (msgs) => {
+      // Get current auto-delete setting
+      const setting = await getAutoDeleteSetting();
+      
       // Merge with stored messages (avoid duplicates)
       setMessages(prev => {
         const combined = [...prev];
@@ -98,7 +146,9 @@ export default function UserChat() {
                  m.encryptedMessage === msg.encryptedMessage
           );
           if (!exists) {
-            combined.push(msg);
+            // Add expiry metadata to history messages
+            const msgWithExpiry = addMessageExpiry(msg, setting);
+            combined.push(msgWithExpiry);
           }
         });
         
@@ -142,7 +192,7 @@ export default function UserChat() {
     }
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message.trim() || !isConnected) return;
     
     const encrypted = encryptMessage(message);
@@ -177,6 +227,17 @@ export default function UserChat() {
   const hasMessages = filteredMsgs.length > 0;
   const isSendDisabled = !message.trim() || !isConnected;
 
+  const getAutoDeleteLabel = () => {
+    switch (autoDeleteSetting) {
+      case 'never': return null;
+      case 'after_reading': return '👁️ Delete after reading';
+      case '24_hours': return '⏱️ 24h auto-delete';
+      case '7_days': return '⏱️ 7d auto-delete';
+      case '30_days': return '⏱️ 30d auto-delete';
+      default: return null;
+    }
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-slate-950">
       <KeyboardAvoidingView
@@ -198,9 +259,19 @@ export default function UserChat() {
             <Text className="text-xl font-semibold text-white">
               {partnerId}
             </Text>
-            <Text className="text-xs text-emerald-400 mt-0.5">
-              {isConnected ? 'Online' : 'Connecting...'}
-            </Text>
+            <View className="flex-row items-center mt-0.5">
+              <Text className="text-xs text-emerald-400">
+                {isConnected ? 'Online' : 'Connecting...'}
+              </Text>
+              {getAutoDeleteLabel() && (
+                <>
+                  <Text className="text-xs text-white/40 mx-2">•</Text>
+                  <Text className="text-xs text-yellow-400">
+                    {getAutoDeleteLabel()}
+                  </Text>
+                </>
+              )}
+            </View>
           </View>
 
           <View className="w-3 h-3 rounded-full bg-emerald-400" />
